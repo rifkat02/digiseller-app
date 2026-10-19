@@ -58,7 +58,7 @@ jobs:
             uses-material-design: true
           EOF
 
-      - name: Overwrite main.dart with Stable UI Code
+      - name: Overwrite main.dart with Full Media & Content Fixes
         run: |
           cat << 'EOF' > lib/main.dart
           import 'package:flutter/material.dart';
@@ -68,6 +68,17 @@ jobs:
 
           void main() {
             runApp(const DigisellerApp());
+          }
+
+          String fixImageUrl(String? rawUrl) {
+            if (rawUrl == null || rawUrl.isEmpty) return '';
+            if (rawUrl.startsWith('//')) {
+              return 'https:$rawUrl';
+            }
+            if (!rawUrl.startsWith('http://') && !rawUrl.startsWith('https://')) {
+              return 'https://$rawUrl';
+            }
+            return rawUrl;
           }
 
           class DigisellerApp extends StatelessWidget {
@@ -193,14 +204,14 @@ jobs:
                             ),
                           Expanded(
                             child: filteredProducts.isEmpty
-                                ? const Center(child: Text('Товаров в этой категории нет'))
+                                ? const Center(child: Text('Товаров пока нет'))
                                 : ListView.builder(
                                     itemCount: filteredProducts.length,
                                     itemBuilder: (context, index) {
                                       final item = filteredProducts[index];
                                       final title = item['title'] ?? 'Без названия';
                                       final price = item['price'] ?? '0 RUB';
-                                      final imgUrl = item['img_url'] ?? '';
+                                      final imgUrl = fixImageUrl(item['img_url']);
                                       final category = item['category'] ?? '';
 
                                       return Card(
@@ -314,7 +325,7 @@ jobs:
             Widget build(BuildContext context) {
               final title = product['title'] ?? 'Без названия';
               final price = product['price'] ?? '0 RUB';
-              final imgUrl = product['img_url'] ?? '';
+              final imgUrl = fixImageUrl(product['img_url']);
               final description = product['description'] ?? 'Описание отсутствует';
               final reviews = (product['reviews'] as List?) ?? [];
 
