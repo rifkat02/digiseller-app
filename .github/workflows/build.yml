@@ -30,6 +30,10 @@ jobs:
         run: |
           flutter create . --org com.digiseller.app --project-name digiseller_app
 
+      - name: Enable HTTP Cleartext Traffic in AndroidManifest
+        run: |
+          sed -i 's/<application/<application android:usesCleartextTraffic="true"/g' android/app/src/main/AndroidManifest.xml
+
       - name: Overwrite pubspec.yaml with dependencies
         run: |
           cat << 'EOF' > pubspec.yaml
@@ -91,7 +95,7 @@ jobs:
           }
 
           class _CatalogPageState extends State<CatalogPage> {
-            final String apiUrl = 'http://grummer565.temp.swtest.ru/';
+            final String apiUrl = 'http://grummer565.temp.swtest.ru/index.php';
 
             List products = [];
             List categories = ['Все'];
@@ -107,7 +111,10 @@ jobs:
             Future<void> loadData() async {
               setState(() => isLoading = true);
               try {
-                final response = await http.get(Uri.parse(apiUrl));
+                final response = await http.get(
+                  Uri.parse(apiUrl),
+                  headers: {'Accept': 'application/json'},
+                );
                 if (response.statusCode == 200) {
                   final data = json.decode(response.body);
                   setState(() {
