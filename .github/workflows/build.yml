@@ -95,7 +95,7 @@ jobs:
           }
 
           class _CatalogPageState extends State<CatalogPage> {
-            final String apiUrl = 'http://grummer565.temp.swtest.ru/index.php';
+            final String apiUrl = 'http://grummer565.temp.swtest.ru/';
 
             List products = [];
             List categories = ['Все'];
@@ -111,18 +111,20 @@ jobs:
             Future<void> loadData() async {
               setState(() => isLoading = true);
               try {
-                final response = await http.get(
-                  Uri.parse(apiUrl),
-                  headers: {'Accept': 'application/json'},
-                );
+                final response = await http.get(Uri.parse(apiUrl));
                 if (response.statusCode == 200) {
-                  final data = json.decode(response.body);
-                  setState(() {
-                    products = data['products'] ?? [];
-                    final cats = List<String>.from(data['categories'] ?? []);
-                    categories = ['Все', ...cats];
-                    isLoading = false;
-                  });
+                  final decoded = json.decode(response.body);
+                  if (decoded is Map) {
+                    final rawProducts = decoded['products'] ?? [];
+                    final rawCats = decoded['categories'] ?? [];
+                    setState(() {
+                      products = rawProducts;
+                      categories = ['Все', ...List<String>.from(rawCats)];
+                      isLoading = false;
+                    });
+                  } else {
+                    setState(() => isLoading = false);
+                  }
                 } else {
                   setState(() => isLoading = false);
                 }
@@ -213,18 +215,18 @@ jobs:
                                               if (imgUrl.isNotEmpty)
                                                 Image.network(
                                                   imgUrl,
-                                                  width: 100,
-                                                  height: 100,
+                                                  width: 90,
+                                                  height: 90,
                                                   fit: BoxFit.cover,
                                                   errorBuilder: (ctx, err, stack) => const SizedBox(
-                                                    width: 100,
-                                                    height: 100,
+                                                    width: 90,
+                                                    height: 90,
                                                     child: Icon(Icons.image_not_supported),
                                                   ),
                                                 ),
                                               Expanded(
                                                 child: Padding(
-                                                  padding: const EdgeInsets.all(12.0),
+                                                  padding: const EdgeInsets.all(10.0),
                                                   child: Column(
                                                     crossAxisAlignment: CrossAxisAlignment.start,
                                                     children: [
@@ -243,16 +245,16 @@ jobs:
                                                         overflow: TextOverflow.ellipsis,
                                                         style: const TextStyle(
                                                           fontWeight: FontWeight.bold,
-                                                          fontSize: 14,
+                                                          fontSize: 13,
                                                         ),
                                                       ),
-                                                      const SizedBox(height: 8),
+                                                      const SizedBox(height: 6),
                                                       Text(
                                                         price,
                                                         style: const TextStyle(
                                                           color: Colors.greenAccent,
                                                           fontWeight: FontWeight.bold,
-                                                          fontSize: 15,
+                                                          fontSize: 14,
                                                         ),
                                                       ),
                                                     ],
@@ -305,7 +307,7 @@ jobs:
 
               return Scaffold(
                 appBar: AppBar(
-                  title: Text(title),
+                  title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
                 ),
                 body: SingleChildScrollView(
                   padding: const EdgeInsets.all(16.0),
@@ -364,11 +366,16 @@ jobs:
                         ),
                         const SizedBox(height: 8),
                         ...reviews.map((r) {
-                          final info = r is Map ? (r['info'] ?? r['text'] ?? '') : r.toString();
+                          String info = '';
+                          if (r is Map) {
+                            info = r['info'] ?? r['text'] ?? r['comment'] ?? '';
+                          } else {
+                            info = r.toString();
+                          }
                           return Card(
                             margin: const EdgeInsets.symmetric(vertical: 4),
                             child: Padding(
-                              padding: const EdgeInsets.all(8.0),
+                              padding: const EdgeInsets.all(10.0),
                               child: Text(info.isEmpty ? 'Положительный отзыв' : info),
                             ),
                           );
