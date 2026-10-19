@@ -27,7 +27,7 @@ jobs:
           cache: true
 
       - name: Re-generate Android platform files
-        run: flutter create . --force --org com.digiseller.app --project-name digiseller_app
+        run: flutter create --force . --org com.digiseller.app --project-name digiseller_app
 
       - name: Get dependencies
         run: flutter pub get
