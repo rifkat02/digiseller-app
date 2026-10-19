@@ -17,7 +17,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
-          java-version: '17'
+          java-version: '21'
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -88,7 +88,6 @@ jobs:
           }
 
           class _CatalogPageState extends State<CatalogPage> {
-            // Указываем адрес вашего сайта, где отдается JSON
             final String apiUrl = 'http://grummer565.temp.swtest.ru/'; 
 
             List products = [];
