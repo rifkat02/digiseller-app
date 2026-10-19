@@ -88,12 +88,9 @@ jobs:
           }
 
           class _CatalogPageState extends State<CatalogPage> {
-            // Ваш точный адрес API на сервере
             final String apiUrl = 'http://grummer565.temp.swtest.ru/api.php'; 
 
             List products = [];
-            List categories = [];
-            String selectedCategory = 'Все';
             bool isLoading = true;
 
             @override
@@ -110,7 +107,6 @@ jobs:
                   final data = json.decode(response.body);
                   setState(() {
                     products = data['products'] ?? [];
-                    categories = ['Все', ...(data['categories'] ?? ['Игры', 'Ключи', 'VPN'])];
                     isLoading = false;
                   });
                 } else {
@@ -130,10 +126,6 @@ jobs:
 
             @override
             Widget build(BuildContext context) {
-              final filteredProducts = selectedCategory == 'Все'
-                  ? products
-                  : products.where((p) => p['category'] == selectedCategory).toList();
-
               return Scaffold(
                 appBar: AppBar(
                   title: const Text('Каталог товаров'),
@@ -148,65 +140,35 @@ jobs:
                 ),
                 body: isLoading
                     ? const Center(child: CircularProgressIndicator())
-                    : Column(
-                        children: [
-                          if (categories.isNotEmpty)
-                            SizedBox(
-                              height: 60,
-                              child: ListView.builder(
-                                scrollDirection: Axis.horizontal,
-                                itemCount: categories.length,
-                                itemBuilder: (context, index) {
-                                  final cat = categories[index];
-                                  final isSelected = cat == selectedCategory;
-                                  return Padding(
-                                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
-                                    child: ChoiceChip(
-                                      label: Text(cat),
-                                      selected: isSelected,
-                                      onSelected: (selected) {
-                                        if (selected) {
-                                          setState(() => selectedCategory = cat);
-                                        }
-                                      },
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
-                          Expanded(
-                            child: filteredProducts.isEmpty
-                                ? const Center(child: Text('Нет товаров в этой категории'))
-                                : ListView.builder(
-                                    itemCount: filteredProducts.length,
-                                    itemBuilder: (context, index) {
-                                      final item = filteredProducts[index];
-                                      return Card(
-                                        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                        child: ListTile(
-                                          title: Text(
-                                            item['title'] ?? 'Без названия',
-                                            style: const TextStyle(fontWeight: FontWeight.bold),
-                                          ),
-                                          subtitle: Text(
-                                            'Категория: ${item['category']} | ${item['price']}',
-                                            style: const TextStyle(color: Colors.green),
-                                          ),
-                                          trailing: ElevatedButton(
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: Colors.deepPurple,
-                                              foregroundColor: Colors.white,
-                                            ),
-                                            onPressed: () => openCheckout(item['pay_url']),
-                                            child: const Text('Купить'),
-                                          ),
-                                        ),
-                                      );
-                                    },
+                    : products.isEmpty
+                        ? const Center(child: Text('Список товаров пуст'))
+                        : ListView.builder(
+                            itemCount: products.length,
+                            itemBuilder: (context, index) {
+                              final item = products[index];
+                              return Card(
+                                margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                child: ListTile(
+                                  title: Text(
+                                    item['title'] ?? 'Без названия',
+                                    style: const TextStyle(fontWeight: FontWeight.bold),
                                   ),
+                                  subtitle: Text(
+                                    'Категория: ${item['category']} | ${item['price']}',
+                                    style: const TextStyle(color: Colors.green),
+                                  ),
+                                  trailing: ElevatedButton(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.deepPurple,
+                                      foregroundColor: Colors.white,
+                                    ),
+                                    onPressed: () => openCheckout(item['pay_url']),
+                                    child: const Text('Купить'),
+                                  ),
+                                ),
+                              );
+                            },
                           ),
-                        ],
-                      ),
               );
             }
           }
