@@ -26,11 +26,8 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Create default Flutter app if missing
-        run: |
-          if [ ! -f "pubspec.yaml" ]; then
-            flutter create . --org com.digiseller.app --project-name digiseller_app
-          fi
+      - name: Re-generate Android platform files
+        run: flutter create . --force --org com.digiseller.app --project-name digiseller_app
 
       - name: Get dependencies
         run: flutter pub get
