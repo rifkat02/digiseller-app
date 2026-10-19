@@ -88,7 +88,8 @@ jobs:
           }
 
           class _CatalogPageState extends State<CatalogPage> {
-            final String apiUrl = 'http://grummer565.temp.swtest.ru/api.php'; 
+            // Указываем адрес вашего сайта, где отдается JSON
+            final String apiUrl = 'http://grummer565.temp.swtest.ru/'; 
 
             List products = [];
             bool isLoading = true;
