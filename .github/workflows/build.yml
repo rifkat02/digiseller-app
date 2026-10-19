@@ -51,7 +51,7 @@ jobs:
             uses-material-design: true
           EOF
 
-      - name: Overwrite main.dart with Custom API Code
+      - name: Overwrite main.dart with Custom Store Code
         run: |
           cat << 'EOF' > lib/main.dart
           import 'package:flutter/material.dart';
@@ -69,10 +69,13 @@ jobs:
             @override
             Widget build(BuildContext context) {
               return MaterialApp(
-                title: 'Партнёрский Маркет',
+                title: 'Цифровой Маркет',
                 debugShowCheckedModeBanner: false,
                 theme: ThemeData(
-                  primarySwatch: Colors.deepPurple,
+                  colorScheme: ColorScheme.fromSeed(
+                    seedColor: Colors.deepPurple,
+                    brightness: Brightness.dark,
+                  ),
                   useMaterial3: true,
                 ),
                 home: const CatalogPage(),
@@ -88,9 +91,11 @@ jobs:
           }
 
           class _CatalogPageState extends State<CatalogPage> {
-            final String apiUrl = 'http://grummer565.temp.swtest.ru/'; 
+            final String apiUrl = 'http://grummer565.temp.swtest.ru/';
 
             List products = [];
+            List categories = ['Все'];
+            String selectedCategory = 'Все';
             bool isLoading = true;
 
             @override
@@ -107,6 +112,8 @@ jobs:
                   final data = json.decode(response.body);
                   setState(() {
                     products = data['products'] ?? [];
+                    final cats = List<String>.from(data['categories'] ?? []);
+                    categories = ['Все', ...cats];
                     isLoading = false;
                   });
                 } else {
@@ -126,11 +133,14 @@ jobs:
 
             @override
             Widget build(BuildContext context) {
+              final filteredProducts = selectedCategory == 'Все'
+                  ? products
+                  : products.where((p) => p['category'] == selectedCategory).toList();
+
               return Scaffold(
                 appBar: AppBar(
-                  title: const Text('Каталог товаров'),
-                  backgroundColor: Colors.deepPurple,
-                  foregroundColor: Colors.white,
+                  title: const Text('Цифровой Маркет'),
+                  centerTitle: true,
                   actions: [
                     IconButton(
                       icon: const Icon(Icons.refresh),
@@ -140,35 +150,226 @@ jobs:
                 ),
                 body: isLoading
                     ? const Center(child: CircularProgressIndicator())
-                    : products.isEmpty
-                        ? const Center(child: Text('Список товаров пуст'))
-                        : ListView.builder(
-                            itemCount: products.length,
-                            itemBuilder: (context, index) {
-                              final item = products[index];
-                              return Card(
-                                margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                child: ListTile(
-                                  title: Text(
-                                    item['title'] ?? 'Без названия',
-                                    style: const TextStyle(fontWeight: FontWeight.bold),
-                                  ),
-                                  subtitle: Text(
-                                    'Категория: ${item['category']} | ${item['price']}',
-                                    style: const TextStyle(color: Colors.green),
-                                  ),
-                                  trailing: ElevatedButton(
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.deepPurple,
-                                      foregroundColor: Colors.white,
+                    : Column(
+                        children: [
+                          if (categories.length > 1)
+                            SizedBox(
+                              height: 50,
+                              child: ListView.builder(
+                                scrollDirection: Axis.horizontal,
+                                itemCount: categories.length,
+                                padding: const EdgeInsets.symmetric(horizontal: 8),
+                                itemBuilder: (context, index) {
+                                  final cat = categories[index];
+                                  final isSelected = cat == selectedCategory;
+                                  return Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                                    child: ChoiceChip(
+                                      label: Text(cat),
+                                      selected: isSelected,
+                                      onSelected: (selected) {
+                                        if (selected) {
+                                          setState(() => selectedCategory = cat);
+                                        }
+                                      },
                                     ),
-                                    onPressed: () => openCheckout(item['pay_url']),
-                                    child: const Text('Купить'),
+                                  );
+                                },
+                              ),
+                            ),
+                          Expanded(
+                            child: filteredProducts.isEmpty
+                                ? const Center(child: Text('Товаров пока нет'))
+                                : ListView.builder(
+                                    itemCount: filteredProducts.length,
+                                    itemBuilder: (context, index) {
+                                      final item = filteredProducts[index];
+                                      final title = item['title'] ?? 'Без названия';
+                                      final price = item['price'] ?? '0 RUB';
+                                      final imgUrl = item['img_url'] ?? '';
+                                      final category = item['category'] ?? '';
+
+                                      return Card(
+                                        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                        clipBehavior: Clip.antiAlias,
+                                        child: InkWell(
+                                          onTap: () {
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (context) => ProductDetailPage(product: item),
+                                              ),
+                                            );
+                                          },
+                                          child: Row(
+                                            children: [
+                                              if (imgUrl.isNotEmpty)
+                                                Image.network(
+                                                  imgUrl,
+                                                  width: 100,
+                                                  height: 100,
+                                                  fit: BoxFit.cover,
+                                                  errorBuilder: (ctx, err, stack) => const SizedBox(
+                                                    width: 100,
+                                                    height: 100,
+                                                    child: Icon(Icons.image_not_supported),
+                                                  ),
+                                                ),
+                                              Expanded(
+                                                child: Padding(
+                                                  padding: const EdgeInsets.all(12.0),
+                                                  child: Column(
+                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                                    children: [
+                                                      Text(
+                                                        category,
+                                                        style: const TextStyle(
+                                                          fontSize: 11,
+                                                          color: Colors.deepPurpleAccent,
+                                                          fontWeight: FontWeight.bold,
+                                                        ),
+                                                      ),
+                                                      const SizedBox(height: 4),
+                                                      Text(
+                                                        title,
+                                                        maxLines: 2,
+                                                        overflow: TextOverflow.ellipsis,
+                                                        style: const TextStyle(
+                                                          fontWeight: FontWeight.bold,
+                                                          fontSize: 14,
+                                                        ),
+                                                      ),
+                                                      const SizedBox(height: 8),
+                                                      Text(
+                                                        price,
+                                                        style: const TextStyle(
+                                                          color: Colors.greenAccent,
+                                                          fontWeight: FontWeight.bold,
+                                                          fontSize: 15,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                              Padding(
+                                                padding: const EdgeInsets.only(right: 8.0),
+                                                child: ElevatedButton(
+                                                  style: ElevatedButton.styleFrom(
+                                                    backgroundColor: Colors.deepPurple,
+                                                    foregroundColor: Colors.white,
+                                                  ),
+                                                  onPressed: () => openCheckout(item['pay_url']),
+                                                  child: const Text('Купить'),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      );
+                                    },
                                   ),
-                                ),
-                              );
-                            },
                           ),
+                        ],
+                      ),
+              );
+            }
+          }
+
+          class ProductDetailPage extends StatelessWidget {
+            final Map product;
+
+            const ProductDetailPage({super.key, required this.product});
+
+            Future<void> openCheckout(String payUrl) async {
+              final url = Uri.parse(payUrl);
+              if (await canLaunchUrl(url)) {
+                await launchUrl(url, mode: LaunchMode.externalApplication);
+              }
+            }
+
+            @override
+            Widget build(BuildContext context) {
+              final title = product['title'] ?? 'Без названия';
+              final price = product['price'] ?? '0 RUB';
+              final imgUrl = product['img_url'] ?? '';
+              final description = product['description'] ?? 'Описание отсутствует';
+              final reviews = (product['reviews'] as List?) ?? [];
+
+              return Scaffold(
+                appBar: AppBar(
+                  title: Text(title),
+                ),
+                body: SingleChildScrollView(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (imgUrl.isNotEmpty)
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: Image.network(
+                            imgUrl,
+                            width: double.infinity,
+                            height: 200,
+                            fit: BoxFit.cover,
+                            errorBuilder: (ctx, err, stack) => const SizedBox(),
+                          ),
+                        ),
+                      const SizedBox(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            price,
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.greenAccent,
+                            ),
+                          ),
+                          ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.deepPurple,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                            ),
+                            onPressed: () => openCheckout(product['pay_url']),
+                            child: const Text('Купить сейчас', style: TextStyle(fontSize: 16)),
+                          ),
+                        ],
+                      ),
+                      const Divider(height: 32),
+                      const Text(
+                        'Описание товара:',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        description,
+                        style: const TextStyle(fontSize: 14, height: 1.4),
+                      ),
+                      if (reviews.isNotEmpty) ...[
+                        const Divider(height: 32),
+                        Text(
+                          'Отзывы покупателей (${reviews.length}):',
+                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 8),
+                        ...reviews.map((r) {
+                          final info = r is Map ? (r['info'] ?? r['text'] ?? '') : r.toString();
+                          return Card(
+                            margin: const EdgeInsets.symmetric(vertical: 4),
+                            child: Padding(
+                              padding: const EdgeInsets.all(8.0),
+                              child: Text(info.isEmpty ? 'Положительный отзыв' : info),
+                            ),
+                          );
+                        }),
+                      ],
+                    ],
+                  ),
+                ),
               );
             }
           }
