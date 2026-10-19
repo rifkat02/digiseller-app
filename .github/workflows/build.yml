@@ -32,9 +32,39 @@ jobs:
 
       - name: Enable HTTP Cleartext Traffic in AndroidManifest
         run: |
-          sed -i 's/<application/<application android:usesCleartextTraffic="true"/g' android/app/src/main/AndroidManifest.xml
+          cat << 'EOF' > android/app/src/main/AndroidManifest.xml
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.INTERNET"/>
+              <application
+                  android:label="Цифровой Маркет"
+                  android:name="${applicationName}"
+                  android:icon="@mipmap/ic_launcher"
+                  android:usesCleartextTraffic="true">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:launchMode="singleTop"
+                      android:theme="@style/LaunchTheme"
+                      android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+                      android:hardwareAccelerated="true"
+                      android:windowSoftInputMode="adjustResize">
+                      <meta-data
+                        android:name="io.flutter.embedding.android.NormalTheme"
+                        android:value="@style/ValueTheme"
+                        />
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN"/>
+                          <category android:name="android.intent.category.LAUNCHER"/>
+                      </intent-filter>
+                  </activity>
+                  <meta-data
+                      android:name="flutterEmbedding"
+                      android:value="2" />
+              </application>
+          </manifest>
+          EOF
 
-      - name: Overwrite pubspec.yaml with dependencies
+      - name: Overwrite pubspec.yaml
         run: |
           cat << 'EOF' > pubspec.yaml
           name: digiseller_app
@@ -55,7 +85,7 @@ jobs:
             uses-material-design: true
           EOF
 
-      - name: Overwrite main.dart with Custom Store Code
+      - name: Overwrite main.dart with Debug & Fixes
         run: |
           cat << 'EOF' > lib/main.dart
           import 'package:flutter/material.dart';
@@ -95,12 +125,13 @@ jobs:
           }
 
           class _CatalogPageState extends State<CatalogPage> {
-            final String apiUrl = 'http://grummer565.temp.swtest.ru/';
+            final String apiUrl = 'http://grummer565.temp.swtest.ru/index.php';
 
             List products = [];
             List categories = ['Все'];
             String selectedCategory = 'Все';
             bool isLoading = true;
+            String errorMessage = '';
 
             @override
             void initState() {
@@ -109,27 +140,48 @@ jobs:
             }
 
             Future<void> loadData() async {
-              setState(() => isLoading = true);
+              setState(() {
+                isLoading = true;
+                errorMessage = '';
+              });
               try {
-                final response = await http.get(Uri.parse(apiUrl));
+                final response = await http.get(
+                  Uri.parse(apiUrl),
+                  headers: {
+                    'User-Agent': 'Mozilla/5.0',
+                    'Accept': 'application/json',
+                  },
+                );
+
                 if (response.statusCode == 200) {
-                  final decoded = json.decode(response.body);
-                  if (decoded is Map) {
-                    final rawProducts = decoded['products'] ?? [];
-                    final rawCats = decoded['categories'] ?? [];
+                  // декодируем корректно с поддержкой UTF-8
+                  final String bodyString = utf8.decode(response.bodyBytes);
+                  final decoded = json.decode(bodyString);
+
+                  if (decoded is Map && decoded.containsKey('products')) {
                     setState(() {
-                      products = rawProducts;
+                      products = decoded['products'] ?? [];
+                      final rawCats = decoded['categories'] ?? [];
                       categories = ['Все', ...List<String>.from(rawCats)];
                       isLoading = false;
                     });
                   } else {
-                    setState(() => isLoading = false);
+                    setState(() {
+                      errorMessage = 'Неверная структура JSON:\n$bodyString';
+                      isLoading = false;
+                    });
                   }
                 } else {
-                  setState(() => isLoading = false);
+                  setState(() {
+                    errorMessage = 'Ошибка сервера: HTTP ${response.statusCode}';
+                    isLoading = false;
+                  });
                 }
               } catch (e) {
-                setState(() => isLoading = false);
+                setState(() {
+                  errorMessage = 'Ошибка подключения:\n$e';
+                  isLoading = false;
+                });
               }
             }
 
@@ -159,128 +211,151 @@ jobs:
                 ),
                 body: isLoading
                     ? const Center(child: CircularProgressIndicator())
-                    : Column(
-                        children: [
-                          if (categories.length > 1)
-                            SizedBox(
-                              height: 50,
-                              child: ListView.builder(
-                                scrollDirection: Axis.horizontal,
-                                itemCount: categories.length,
-                                padding: const EdgeInsets.symmetric(horizontal: 8),
-                                itemBuilder: (context, index) {
-                                  final cat = categories[index];
-                                  final isSelected = cat == selectedCategory;
-                                  return Padding(
-                                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                                    child: ChoiceChip(
-                                      label: Text(cat),
-                                      selected: isSelected,
-                                      onSelected: (selected) {
-                                        if (selected) {
-                                          setState(() => selectedCategory = cat);
-                                        }
-                                      },
-                                    ),
-                                  );
-                                },
+                    : errorMessage.isNotEmpty
+                        ? Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(Icons.error_outline, color: Colors.redAccent, size: 48),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    errorMessage,
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(color: Colors.redAccent, fontSize: 13),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  ElevatedButton(
+                                    onPressed: loadData,
+                                    child: const Text('Повторить'),
+                                  )
+                                ],
                               ),
                             ),
-                          Expanded(
-                            child: filteredProducts.isEmpty
-                                ? const Center(child: Text('Товаров пока нет'))
-                                : ListView.builder(
-                                    itemCount: filteredProducts.length,
+                          )
+                        : Column(
+                            children: [
+                              if (categories.length > 1)
+                                SizedBox(
+                                  height: 50,
+                                  child: ListView.builder(
+                                    scrollDirection: Axis.horizontal,
+                                    itemCount: categories.length,
+                                    padding: const EdgeInsets.symmetric(horizontal: 8),
                                     itemBuilder: (context, index) {
-                                      final item = filteredProducts[index];
-                                      final title = item['title'] ?? 'Без названия';
-                                      final price = item['price'] ?? '0 RUB';
-                                      final imgUrl = item['img_url'] ?? '';
-                                      final category = item['category'] ?? '';
-
-                                      return Card(
-                                        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                        clipBehavior: Clip.antiAlias,
-                                        child: InkWell(
-                                          onTap: () {
-                                            Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (context) => ProductDetailPage(product: item),
-                                              ),
-                                            );
+                                      final cat = categories[index];
+                                      final isSelected = cat == selectedCategory;
+                                      return Padding(
+                                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                                        child: ChoiceChip(
+                                          label: Text(cat),
+                                          selected: isSelected,
+                                          onSelected: (selected) {
+                                            if (selected) {
+                                              setState(() => selectedCategory = cat);
+                                            }
                                           },
-                                          child: Row(
-                                            children: [
-                                              if (imgUrl.isNotEmpty)
-                                                Image.network(
-                                                  imgUrl,
-                                                  width: 90,
-                                                  height: 90,
-                                                  fit: BoxFit.cover,
-                                                  errorBuilder: (ctx, err, stack) => const SizedBox(
-                                                    width: 90,
-                                                    height: 90,
-                                                    child: Icon(Icons.image_not_supported),
-                                                  ),
-                                                ),
-                                              Expanded(
-                                                child: Padding(
-                                                  padding: const EdgeInsets.all(10.0),
-                                                  child: Column(
-                                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                                    children: [
-                                                      Text(
-                                                        category,
-                                                        style: const TextStyle(
-                                                          fontSize: 11,
-                                                          color: Colors.deepPurpleAccent,
-                                                          fontWeight: FontWeight.bold,
-                                                        ),
-                                                      ),
-                                                      const SizedBox(height: 4),
-                                                      Text(
-                                                        title,
-                                                        maxLines: 2,
-                                                        overflow: TextOverflow.ellipsis,
-                                                        style: const TextStyle(
-                                                          fontWeight: FontWeight.bold,
-                                                          fontSize: 13,
-                                                        ),
-                                                      ),
-                                                      const SizedBox(height: 6),
-                                                      Text(
-                                                        price,
-                                                        style: const TextStyle(
-                                                          color: Colors.greenAccent,
-                                                          fontWeight: FontWeight.bold,
-                                                          fontSize: 14,
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                              ),
-                                              Padding(
-                                                padding: const EdgeInsets.only(right: 8.0),
-                                                child: ElevatedButton(
-                                                  style: ElevatedButton.styleFrom(
-                                                    backgroundColor: Colors.deepPurple,
-                                                    foregroundColor: Colors.white,
-                                                  ),
-                                                  onPressed: () => openCheckout(item['pay_url']),
-                                                  child: const Text('Купить'),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
                                         ),
                                       );
                                     },
                                   ),
+                                ),
+                              Expanded(
+                                child: filteredProducts.isEmpty
+                                    ? const Center(child: Text('Товаров в этой категории нет'))
+                                    : ListView.builder(
+                                        itemCount: filteredProducts.length,
+                                        itemBuilder: (context, index) {
+                                          final item = filteredProducts[index];
+                                          final title = item['title'] ?? 'Без названия';
+                                          final price = item['price'] ?? '0 RUB';
+                                          final imgUrl = item['img_url'] ?? '';
+                                          final category = item['category'] ?? '';
+
+                                          return Card(
+                                            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                            clipBehavior: Clip.antiAlias,
+                                            child: InkWell(
+                                              onTap: () {
+                                                Navigator.push(
+                                                  context,
+                                                  MaterialPageRoute(
+                                                    builder: (context) => ProductDetailPage(product: item),
+                                                  ),
+                                                );
+                                              },
+                                              child: Row(
+                                                children: [
+                                                  if (imgUrl.isNotEmpty)
+                                                    Image.network(
+                                                      imgUrl,
+                                                      width: 90,
+                                                      height: 90,
+                                                      fit: BoxFit.cover,
+                                                      errorBuilder: (ctx, err, stack) => const SizedBox(
+                                                        width: 90,
+                                                        height: 90,
+                                                        child: Icon(Icons.image_not_supported),
+                                                      ),
+                                                    ),
+                                                  Expanded(
+                                                    child: Padding(
+                                                      padding: const EdgeInsets.all(10.0),
+                                                      child: Column(
+                                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                                        children: [
+                                                          Text(
+                                                            category,
+                                                            style: const TextStyle(
+                                                              fontSize: 11,
+                                                              color: Colors.deepPurpleAccent,
+                                                              fontWeight: FontWeight.bold,
+                                                            ),
+                                                          ),
+                                                          const SizedBox(height: 4),
+                                                          Text(
+                                                            title,
+                                                            maxLines: 2,
+                                                            overflow: TextOverflow.ellipsis,
+                                                            style: const TextStyle(
+                                                              fontWeight: FontWeight.bold,
+                                                              fontSize: 13,
+                                                            ),
+                                                          ),
+                                                          const SizedBox(height: 6),
+                                                          Text(
+                                                            price,
+                                                            style: const TextStyle(
+                                                              color: Colors.greenAccent,
+                                                              fontWeight: FontWeight.bold,
+                                                              fontSize: 14,
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  Padding(
+                                                    padding: const EdgeInsets.only(right: 8.0),
+                                                    child: ElevatedButton(
+                                                      style: ElevatedButton.styleFrom(
+                                                        backgroundColor: Colors.deepPurple,
+                                                        foregroundColor: Colors.white,
+                                                      ),
+                                                      onPressed: () => openCheckout(item['pay_url']),
+                                                      child: const Text('Купить'),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                      ),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
               );
             }
           }
