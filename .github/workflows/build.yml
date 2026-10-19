@@ -91,6 +91,8 @@ jobs:
             List products = [];
             bool isLoading = true;
             final TextEditingController _searchController = TextEditingController(text: 'steam');
+
+            // Ваш партнёрский ID
             final int agentId = 1389780; 
 
             @override
@@ -104,31 +106,49 @@ jobs:
                 isLoading = true;
               });
 
+              final searchQuery = query.trim().isEmpty ? 'steam' : query.trim();
+
               try {
                 final response = await http.get(
-                  Uri.parse('https://api.digiseller.com/api/search?query=$query&rows=20&page=1'),
-                  headers: {'Accept': 'application/json'},
+                  Uri.parse('https://api.digiseller.com/api/search?query=$searchQuery&rows=30&page=1'),
+                  headers: {
+                    'Accept': 'application/json',
+                    'User-Agent': 'Mozilla/5.0 (Android Mobile)',
+                  },
                 );
                 
                 if (response.statusCode == 200) {
                   final data = json.decode(response.body);
+                  List rawRows = [];
+
+                  if (data is Map && data.containsKey('rows')) {
+                    rawRows = data['rows'] ?? [];
+                  } else if (data is List) {
+                    rawRows = data;
+                  } else if (data is Map && data.containsKey('product')) {
+                    rawRows = data['product'] ?? [];
+                  }
+
                   setState(() {
-                    products = data['rows'] ?? [];
+                    products = rawRows;
                     isLoading = false;
                   });
                 } else {
                   setState(() {
+                    products = [];
                     isLoading = false;
                   });
                 }
               } catch (e) {
                 setState(() {
+                  products = [];
                   isLoading = false;
                 });
               }
             }
 
-            Future<void> openCheckout(int productId) async {
+            Future<void> openCheckout(dynamic productId) async {
+              if (productId == null) return;
               final url = Uri.parse('https://oplata.info/asp/pay.asp?id_d=$productId&ai=$agentId');
               if (await canLaunchUrl(url)) {
                 await launchUrl(url, mode: LaunchMode.externalApplication);
@@ -154,9 +174,11 @@ jobs:
                               controller: _searchController,
                               decoration: const InputDecoration(
                                 labelText: 'Поиск товаров',
+                                hintText: 'Например: steam, vpn, key',
                                 border: OutlineInputBorder(),
                                 contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                               ),
+                              onSubmitted: (val) => fetchProducts(val),
                             ),
                           ),
                           const SizedBox(width: 8),
@@ -172,21 +194,38 @@ jobs:
                       child: isLoading
                           ? const Center(child: CircularProgressIndicator())
                           : products.isEmpty
-                              ? const Center(child: Text('Товары не найдены'))
+                              ? Center(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      const Text('Товары не найдены'),
+                                      const SizedBox(height: 12),
+                                      ElevatedButton(
+                                        onPressed: () => fetchProducts('steam'),
+                                        child: const Text('Сбросить поиск'),
+                                      )
+                                    ],
+                                  ),
+                                )
                               : ListView.builder(
                                   itemCount: products.length,
                                   itemBuilder: (context, index) {
                                     final item = products[index];
+                                    final name = item['name'] ?? item['product_name'] ?? 'Без названия';
+                                    final price = item['price_cnt'] ?? item['price_rub'] ?? item['price'] ?? '0';
+                                    final currency = item['currency'] ?? 'RUB';
+                                    final productId = item['id'] ?? item['product_id'];
+
                                     return Card(
                                       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                                       child: ListTile(
                                         title: Text(
-                                          item['name'] ?? 'Без названия',
+                                          name,
                                           maxLines: 2,
                                           overflow: TextOverflow.ellipsis,
                                         ),
                                         subtitle: Text(
-                                          '${item['price_cnt'] ?? item['price']} ${item['currency'] ?? 'RUB'}',
+                                          '$price $currency',
                                           style: const TextStyle(
                                             fontWeight: FontWeight.bold,
                                             color: Colors.green,
@@ -197,7 +236,7 @@ jobs:
                                             backgroundColor: Colors.deepPurple,
                                             foregroundColor: Colors.white,
                                           ),
-                                          onPressed: () => openCheckout(item['id']),
+                                          onPressed: () => openCheckout(productId),
                                           child: const Text('Купить'),
                                         ),
                                       ),
